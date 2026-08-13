@@ -416,8 +416,44 @@ def shape_generation(
         model_viewer_html,
         stats,
         seed,
+        mesh,
+        image,
     )
 
+def texture_current_shape(mesh, image):
+    if mesh is None:
+        raise gr.Error("No shape has been generated yet. Generate a shape first.")
+
+    if image is None:
+        raise gr.Error("No source image is available for texturing.")
+
+    start_time = time.time()
+
+    # Use the same face reduction performed by the normal textured pipeline.
+    mesh = face_reduce_worker(mesh)
+
+    textured_mesh = texgen_worker(mesh, image)
+
+    save_folder = gen_save_folder()
+    path_textured = export_mesh(textured_mesh, save_folder, textured=True)
+
+    textured_mesh.metadata['extras'] = {
+        'time': {
+            'texture generation': time.time() - start_time
+        }
+    }
+
+    model_viewer_html = build_model_viewer_html(
+        save_folder,
+        height=HTML_HEIGHT,
+        width=HTML_WIDTH,
+        textured=True
+    )
+
+    if args.low_vram_mode:
+        torch.cuda.empty_cache()
+
+    return path_textured, model_viewer_html
 
 def build_app():
 
@@ -457,6 +493,8 @@ def build_app():
     """
 
     with gr.Blocks(theme=gr.themes.Base(), title='Hunyuan-3D-2.0', analytics_enabled=False, css=custom_css) as demo:
+        last_mesh = gr.State(None)
+        last_image = gr.State(None)
         gr.HTML(title_html)
 
         with gr.Row():
@@ -484,10 +522,18 @@ def build_app():
 
                 with gr.Row():
                     btn = gr.Button(value='Gen Shape', variant='primary', min_width=100)
-                    btn_all = gr.Button(value='Gen Textured Shape',
-                                        variant='primary',
-                                        visible=HAS_TEXTUREGEN,
-                                        min_width=100)
+                    btn_texture = gr.Button(
+                        value='Texture Current Shape',
+                        variant='secondary',
+                        visible=HAS_TEXTUREGEN,
+                        min_width=100
+                    )
+                    btn_all = gr.Button(
+                        value='Gen Textured Shape',
+                        variant='primary',
+                        visible=HAS_TEXTUREGEN,
+                        min_width=100
+                    )
 
                 with gr.Group():
                     file_out = gr.File(label="File", visible=False)
@@ -607,11 +653,20 @@ def build_app():
                 num_chunks,
                 randomize_seed,
             ],
-            outputs=[file_out, html_gen_mesh, stats, seed]
+            outputs=[file_out, html_gen_mesh, stats, seed, last_mesh, last_image]
         ).then(
             lambda: (gr.update(visible=False, value=False), gr.update(interactive=True), gr.update(interactive=True),
                      gr.update(interactive=False)),
             outputs=[export_texture, reduce_face, confirm_export, file_export],
+        ).then(
+            lambda: gr.update(selected='gen_mesh_panel'),
+            outputs=[tabs_output],
+        )
+
+        btn_texture.click(
+            texture_current_shape,
+            inputs=[last_mesh, last_image],
+            outputs=[file_out2, html_gen_mesh],
         ).then(
             lambda: gr.update(selected='gen_mesh_panel'),
             outputs=[tabs_output],
