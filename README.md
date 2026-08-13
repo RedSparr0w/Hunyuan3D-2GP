@@ -1,3 +1,5 @@
+.\.venv\Scripts\python.exe gradio_app.py --profile 4 --turbo
+
 [中文阅读](README_zh_cn.md)
 [日本語で読む](README_ja_jp.md)
 
