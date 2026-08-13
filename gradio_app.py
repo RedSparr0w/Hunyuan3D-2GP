@@ -420,7 +420,7 @@ def shape_generation(
         image,
     )
 
-def texture_current_shape(mesh, image):
+def texture_current_shape(mesh, image, target_face_num=None):
     if mesh is None:
         raise gr.Error("No shape has been generated yet. Generate a shape first.")
 
@@ -429,13 +429,18 @@ def texture_current_shape(mesh, image):
 
     start_time = time.time()
 
-    # Use the same face reduction performed by the normal textured pipeline.
-    mesh = face_reduce_worker(mesh)
+    # Simplify BEFORE texture generation
+    if target_face_num is not None:
+        mesh = face_reduce_worker(mesh, target_face_num)
 
     textured_mesh = texgen_worker(mesh, image)
 
     save_folder = gen_save_folder()
-    path_textured = export_mesh(textured_mesh, save_folder, textured=True)
+    path_textured = export_mesh(
+        textured_mesh,
+        save_folder,
+        textured=True
+    )
 
     textured_mesh.metadata['extras'] = {
         'time': {
@@ -536,8 +541,8 @@ def build_app():
                     )
 
                 with gr.Group():
-                    file_out = gr.File(label="File", visible=False)
-                    file_out2 = gr.File(label="File", visible=False)
+                    file_out = gr.File(label="Raw Mesh", visible=True)
+                    file_out2 = gr.File(label="Textured Mesh", visible=True)
 
                 with gr.Tabs(selected='tab_options' if TURBO_MODE else 'tab_export'):
                     with gr.Tab("Options", id='tab_options', visible=TURBO_MODE):
@@ -575,8 +580,12 @@ def build_app():
                             file_type = gr.Dropdown(label='File Type', choices=SUPPORTED_FORMATS,
                                                     value='glb', min_width=100)
                             reduce_face = gr.Checkbox(label='Simplify Mesh', value=False, min_width=100)
-                            export_texture = gr.Checkbox(label='Include Texture', value=False,
-                                                         visible=False, min_width=100)
+                            export_texture = gr.Checkbox(
+                                label='Include Texture',
+                                value=False,
+                                visible=True,
+                                min_width=100
+                            )
                         target_face_num = gr.Slider(maximum=1000000, minimum=100, value=10000,
                                                     label='Target Face Number')
                         with gr.Row():
@@ -665,7 +674,7 @@ def build_app():
 
         btn_texture.click(
             texture_current_shape,
-            inputs=[last_mesh, last_image],
+            inputs=[last_mesh, last_image, target_face_num],
             outputs=[file_out2, html_gen_mesh],
         ).then(
             lambda: gr.update(selected='gen_mesh_panel'),
