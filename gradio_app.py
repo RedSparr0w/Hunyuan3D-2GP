@@ -420,7 +420,7 @@ def shape_generation(
         image,
     )
 
-def texture_current_shape(mesh, image, target_face_num=None):
+def texture_current_shape(mesh, image, reduce_face=False, target_face_num=10000):
     if mesh is None:
         raise gr.Error("No shape has been generated yet. Generate a shape first.")
 
@@ -429,8 +429,9 @@ def texture_current_shape(mesh, image, target_face_num=None):
 
     start_time = time.time()
 
-    # Simplify BEFORE texture generation
-    if target_face_num is not None:
+    # Optionally simplify BEFORE texture generation
+    if reduce_face:
+        print(f"Reducing mesh to approximately {target_face_num} faces before texturing")
         mesh = face_reduce_worker(mesh, target_face_num)
 
     textured_mesh = texgen_worker(mesh, image)
@@ -529,6 +530,12 @@ def build_app():
                     btn = gr.Button(value='Gen Shape', variant='primary', min_width=100)
                     btn_texture = gr.Button(
                         value='Texture Current Shape',
+                        variant='secondary',
+                        visible=HAS_TEXTUREGEN,
+                        min_width=100
+                    )
+                    btn_texture_simplified = gr.Button(
+                        value='Simplify + Texture',
                         variant='secondary',
                         visible=HAS_TEXTUREGEN,
                         min_width=100
@@ -664,8 +671,12 @@ def build_app():
             ],
             outputs=[file_out, html_gen_mesh, stats, seed, last_mesh, last_image]
         ).then(
-            lambda: (gr.update(visible=False, value=False), gr.update(interactive=True), gr.update(interactive=True),
-                     gr.update(interactive=False)),
+            lambda: (
+                gr.update(visible=True, value=False),
+                gr.update(interactive=True),
+                gr.update(interactive=True),
+                gr.update(interactive=False)
+            ),
             outputs=[export_texture, reduce_face, confirm_export, file_export],
         ).then(
             lambda: gr.update(selected='gen_mesh_panel'),
@@ -674,6 +685,20 @@ def build_app():
 
         btn_texture.click(
             texture_current_shape,
+            inputs=[last_mesh, last_image],
+            outputs=[file_out2, html_gen_mesh],
+        ).then(
+            lambda: gr.update(selected='gen_mesh_panel'),
+            outputs=[tabs_output],
+        )
+
+        btn_texture_simplified.click(
+            lambda mesh, image, target_face_num: texture_current_shape(
+                mesh,
+                image,
+                reduce_face=True,
+                target_face_num=target_face_num
+            ),
             inputs=[last_mesh, last_image, target_face_num],
             outputs=[file_out2, html_gen_mesh],
         ).then(
@@ -734,32 +759,77 @@ def build_app():
 
             print(f'exporting {file_out}')
             print(f'reduce face to {target_face_num}')
-            if export_texture:
-                mesh = trimesh.load(file_out2)
-                save_folder = gen_save_folder()
-                path = export_mesh(mesh, save_folder, textured=True, type=file_type)
+            print(f'include texture: {export_texture}')
 
-                # for preview
+            if export_texture:
+                if file_out2 is None:
+                    raise gr.Error('No textured mesh is available. Generate a texture first.')
+
+                # Export the already-textured mesh.
+                mesh = trimesh.load(file_out2)
+
                 save_folder = gen_save_folder()
-                _ = export_mesh(mesh, save_folder, textured=True)
-                model_viewer_html = build_model_viewer_html(save_folder, height=HTML_HEIGHT, width=HTML_WIDTH,
-                                                            textured=True)
+                path = export_mesh(
+                    mesh,
+                    save_folder,
+                    textured=True,
+                    type=file_type
+                )
+
+                # Preview
+                preview_folder = gen_save_folder()
+                _ = export_mesh(
+                    mesh,
+                    preview_folder,
+                    textured=True
+                )
+
+                model_viewer_html = build_model_viewer_html(
+                    preview_folder,
+                    height=HTML_HEIGHT,
+                    width=HTML_WIDTH,
+                    textured=True
+                )
+
             else:
+                # Export the untextured shape.
                 mesh = trimesh.load(file_out)
+
                 mesh = floater_remove_worker(mesh)
                 mesh = degenerate_face_remove_worker(mesh)
+
                 if reduce_face:
                     mesh = face_reduce_worker(mesh, target_face_num)
-                save_folder = gen_save_folder()
-                path = export_mesh(mesh, save_folder, textured=False, type=file_type)
 
-                # for preview
                 save_folder = gen_save_folder()
-                _ = export_mesh(mesh, save_folder, textured=False)
-                model_viewer_html = build_model_viewer_html(save_folder, height=HTML_HEIGHT, width=HTML_WIDTH,
-                                                            textured=False)
+                path = export_mesh(
+                    mesh,
+                    save_folder,
+                    textured=False,
+                    type=file_type
+                )
+
+                # Preview
+                preview_folder = gen_save_folder()
+                _ = export_mesh(
+                    mesh,
+                    preview_folder,
+                    textured=False
+                )
+
+                model_viewer_html = build_model_viewer_html(
+                    preview_folder,
+                    height=HTML_HEIGHT,
+                    width=HTML_WIDTH,
+                    textured=False
+                )
+
             print(f'export to {path}')
-            return model_viewer_html, gr.update(value=path, interactive=True)
+
+            return (
+                model_viewer_html,
+                gr.update(value=path, interactive=True)
+            )
 
         confirm_export.click(
             lambda: gr.update(selected='export_mesh_panel'),
