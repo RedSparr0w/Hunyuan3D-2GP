@@ -999,6 +999,7 @@ if __name__ == '__main__':
     if HAS_TEXTUREGEN:
         pipe.update(  offload.extract_models( "texgen_worker", texgen_worker))
         texgen_worker.models["multiview_model"].pipeline.vae.use_slicing = True
+        texgen_worker.enable_model_cpu_offload()
     if HAS_T2I:
         pipe.update(  offload.extract_models( "t2i_worker", t2i_worker))
         
