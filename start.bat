@@ -17,7 +17,7 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-".venv\Scripts\python.exe" gradio_app.py
+".venv\Scripts\python.exe" gradio_app.py --profile 4 --turbo
 
 echo.
 echo ========================================
