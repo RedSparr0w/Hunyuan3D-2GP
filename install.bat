@@ -131,14 +131,31 @@ echo Installing dependencies
 echo ========================================
 echo.
 
+REM diso requires PyTorch during its build.
+REM Install it separately without build isolation.
+
+echo Installing diso...
+"%PYTHON%" -m pip install diso==0.1.4 --no-build-isolation
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: diso installation failed.
+    pause
+    exit /b 1
+)
+
 if exist "%ROOT%requirements-working.txt" (
-    echo Using requirements-working.txt
     echo.
-    "%PYTHON%" -m pip install -r "%ROOT%requirements-working.txt"
+    echo Installing remaining dependencies...
+    echo.
+
+    "%PYTHON%" -m pip install -r "%ROOT%requirements-working.txt" --no-deps
+
 ) else if exist "%ROOT%requirements.txt" (
-    echo requirements-working.txt not found.
-    echo Using requirements.txt instead.
     echo.
+    echo Installing requirements.txt...
+    echo.
+
     "%PYTHON%" -m pip install -r "%ROOT%requirements.txt"
 ) else (
     echo.
@@ -153,6 +170,7 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
 
 REM ============================================================
 REM Install Hunyuan3D package

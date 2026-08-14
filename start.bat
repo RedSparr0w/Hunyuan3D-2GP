@@ -11,7 +11,7 @@ echo.
 if not exist ".venv\Scripts\python.exe" (
     echo ERROR: Hunyuan3D-2GP is not installed.
     echo.
-    echo Run install-2gp.bat first.
+    echo Run install.bat first.
     echo.
     pause
     exit /b 1
