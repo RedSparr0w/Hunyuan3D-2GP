@@ -534,6 +534,7 @@ def build_app():
                         visible=HAS_TEXTUREGEN,
                         min_width=100
                     )
+                with gr.Row():
                     btn_texture_simplified = gr.Button(
                         value='Simplify + Texture',
                         variant='secondary',
